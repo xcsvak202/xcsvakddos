@@ -1,5 +1,5 @@
 {
-  "name": "api-runner",
+  "name": "api-runner-clean",
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
